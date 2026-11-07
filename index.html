@@ -241,6 +241,15 @@ body.presing .top{position:fixed;z-index:140}
 .rich .wl{user-select:all;cursor:default}
 #ac{max-height:200px;overflow:auto}
 
+/* ===== v6: barras minimizables y exportación a carpeta ===== */
+body.hide-bar .bar{display:none}
+body.hide-tabs .tabs{display:none}
+#bmin{position:absolute;left:10px;top:8px;z-index:45;display:flex;gap:4px;opacity:.5;transition:opacity .2s}
+#bmin:hover,#bmin:focus-within{opacity:1}
+#bmin button{height:26px;padding:0 9px;font-size:11px;background:var(--card)}
+.xsec{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.xsec h3{font:700 11px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+
 
 
 </style>
@@ -275,7 +284,7 @@ body.presing .top{position:fixed;z-index:140}
   <div class="empty" id="empty" hidden><div><h2>Este rincón del cielo está vacío</h2><p>Escribe un título arriba y pulsa «Añadir nota», o toca dos veces el mapa para encender la primera estrella. Une notas escribiendo [[Título]] en el texto.</p><button class="primary" id="btnSeed" type="button" hidden>Cargar materias de ejemplo</button></div></div>
   <div class="top"><div class="banner" id="banner" hidden><span id="bannerText"></span><button id="bannerCancel" type="button">Cancelar</button></div><div id="toasts" aria-live="polite"></div></div>
   <div class="keyhint">Pulsa <kbd>?</kbd> para ver los atajos · <kbd>Ctrl</kbd>+<kbd>K</kbd> para ir a una nota</div>
-  <div id="mbar" hidden role="toolbar" aria-label="Notas seleccionadas"><span id="mCount"></span><button id="mLink" class="primary" type="button">Conectar entre sí</button><button id="mUnlink" type="button">Quitar enlaces</button><button id="mDel" class="danger" type="button">Borrar</button><button id="mClear" type="button">Cancelar</button></div><aside id="panel" hidden aria-label="Nota seleccionada"></aside><div id="pgrip" hidden role="separator" aria-orientation="vertical" aria-label="Cambiar el ancho del panel" title="Arrastra para cambiar el ancho (doble clic: restablecer)" tabindex="0"></div>
+  <div id="bmin" role="group" aria-label="Mostrar u ocultar barras"><button id="btnBar" type="button" title="Ocultar o mostrar la barra superior (B)">▲ Menú</button><button id="btnTabs" type="button" title="Ocultar o mostrar la barra de materias (B)">▲ Materias</button></div><div id="mbar" hidden role="toolbar" aria-label="Notas seleccionadas"><span id="mCount"></span><button id="mLink" class="primary" type="button">Conectar entre sí</button><button id="mUnlink" type="button">Quitar enlaces</button><button id="mDel" class="danger" type="button">Borrar</button><button id="mClear" type="button">Cancelar</button></div><aside id="panel" hidden aria-label="Nota seleccionada"></aside><div id="pgrip" hidden role="separator" aria-orientation="vertical" aria-label="Cambiar el ancho del panel" title="Arrastra para cambiar el ancho (doble clic: restablecer)" tabindex="0"></div>
   <div id="dlg" hidden role="dialog" aria-modal="true" aria-label="Diálogo"><div class="card" id="dlgCard"></div></div>
   <div id="pres" hidden role="region" aria-label="Modo presentación">
     <canvas id="pcv" aria-hidden="true"></canvas>
@@ -289,6 +298,7 @@ body.presing .top{position:fixed;z-index:140}
 </main>
 <input id="fileImg" type="file" accept="image/*" multiple hidden>
 <input id="fileImp" type="file" accept="application/json,.json" hidden>
+<input id="fileDir" type="file" webkitdirectory multiple hidden>
 
 <script>
 (function(){
@@ -348,7 +358,7 @@ function norm(o){
     s.notes=s.notes||[];s.color=s.color||'azul';s.view=s.view||null;s.name=s.name||'Materia';
     s.notes.forEach(function(n){n.t=n.t||'Sin título';n.body=n.body||'';n.imgs=n.imgs||[];n.links=n.links||[];n.parent=n.parent||null;n.key=n.key||'';n.color=n.color||s.color;n.x=+n.x||0;n.y=+n.y||0;});
   });
-  o.theme=o.theme||'galaxia';o.editor=o.editor||'rich';o.presScale=o.presScale||1;o.panelW=o.panelW||360;
+  o.barsMin=o.barsMin||{bar:false,tabs:false};o.theme=o.theme||'galaxia';o.editor=o.editor||'rich';o.presScale=o.presScale||1;o.panelW=o.panelW||360;
   if(!o.subjects.some(function(s){return s.id===o.current;}))o.current=o.subjects[0].id;
   return o;
 }
@@ -775,13 +785,14 @@ function subjDialog(s){
   h+='<form id="sForm" autocomplete="off"><label class="fld"><span>Nombre</span><input id="sName" type="text" maxlength="40" value="'+esc(s?s.name:'')+'" placeholder="Ej. Derecho Constitucional"></label>';
   h+='<div class="fld"><span>Color</span><div class="palette" id="sPal"></div></div>';
   h+='<div class="row" style="margin-top:18px"><button class="primary" type="button" data-act="ssave">'+(s?'Guardar':'Crear materia')+'</button><button type="button" data-act="dclose">Cancelar</button></div></form>';
+  if(s)h+='<div class="row" style="margin-top:14px"><button type="button" data-act="exps">Exportar esta materia (carpeta con imágenes)</button></div>';
   if(s)h+='<div id="sDel">'+(S.subjects.length>1?'<button class="ghost-danger" type="button" data-act="sdel">Borrar materia</button>':'<p class="hint" style="margin-top:18px">Es tu única materia, no se puede borrar.</p>')+'</div>';
   openDlg(h);paintPal();
 }
 function paintPal(){$('#sPal').innerHTML=COLORS.map(function(c){return '<button class="sw'+(dlgState.color===c.id?' on':'')+'" type="button" data-act="scolor" data-v="'+c.id+'" style="--sw:'+c.c+'" aria-label="'+c.n+'" title="'+c.n+'"></button>';}).join('');}
 function bkDialog(){
   var nn=0,ni=0;S.subjects.forEach(function(s){nn+=s.notes.length;s.notes.forEach(function(n){ni+=n.imgs.length;});});
-  openDlg('<div class="dh"><h2>Respaldo</h2><button class="x" data-act="dclose" type="button" aria-label="Cerrar">×</button></div><p class="hint" style="font-size:13px">Tus notas se guardan en este navegador. Si borras los datos del sitio o cambias de dispositivo se pierden, así que exporta una copia de vez en cuando.</p><dl style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:13px;margin:14px 0"><dt style="color:var(--muted)">Materias</dt><dd style="margin:0;font-family:var(--f-mono)">'+S.subjects.length+'</dd><dt style="color:var(--muted)">Notas</dt><dd style="margin:0;font-family:var(--f-mono)">'+nn+'</dd><dt style="color:var(--muted)">Imágenes</dt><dd style="margin:0;font-family:var(--f-mono)">'+ni+'</dd></dl><div class="row"><button class="primary" type="button" data-act="export">Exportar copia (.json)</button><button type="button" data-act="import">Importar copia…</button></div><div id="impBox"></div>');
+  openDlg('<div class="dh"><h2>Respaldo</h2><button class="x" data-act="dclose" type="button" aria-label="Cerrar">×</button></div><p class="hint" style="font-size:13px">Tus notas se guardan en este navegador. Si borras los datos del sitio o cambias de dispositivo se pierden, así que exporta una copia de vez en cuando.</p><dl style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:13px;margin:14px 0"><dt style="color:var(--muted)">Materias</dt><dd style="margin:0;font-family:var(--f-mono)">'+S.subjects.length+'</dd><dt style="color:var(--muted)">Notas</dt><dd style="margin:0;font-family:var(--f-mono)">'+nn+'</dd><dt style="color:var(--muted)">Imágenes</dt><dd style="margin:0;font-family:var(--f-mono)">'+ni+'</dd></dl><div class="row"><button class="primary" type="button" data-act="export">Exportar copia (.json)</button><button type="button" data-act="import">Importar copia…</button></div><div class="xsec"><h3>Carpeta portátil (con imágenes)</h3><p class="hint" style="margin-bottom:10px">Guarda una carpeta con tus notas y todas las imágenes usadas. Llévala a otra computadora e impórtala ahí. Si tu navegador no permite elegir carpeta, se descarga un .zip: descomprímelo y luego importa la carpeta.</p><div class="row"><button class="primary" type="button" data-act="expcur">Exportar «'+esc(short(subj.name,18))+'»</button><button type="button" data-act="expall">Exportar todas las materias</button><button type="button" data-act="impdir">Importar carpeta…</button></div></div><div id="impBox"></div>');
 }
 dlg.addEventListener('click',function(e){
   if(e.target===dlg){closeDlg();return;}
@@ -795,6 +806,10 @@ dlg.addEventListener('click',function(e){
     if(s&&S.subjects.length>1){S.subjects=S.subjects.filter(function(x){return x!==s;});closeDlg();setSubject(S.subjects[0].id);toast('Materia borrada. Puedes deshacerla con Ctrl+Z.');}
   }
   else if(a==='export')doExport();
+  else if(a==='exps'){var sx=S.subjects.filter(function(x){return dlgState&&x.id===dlgState.id;})[0];if(sx)exportSubjects([sx]);}
+  else if(a==='expcur')exportSubjects([subj]);
+  else if(a==='expall')exportSubjects(S.subjects.slice());
+  else if(a==='impdir')$('#fileDir').click();
   else if(a==='import')$('#fileImp').click();
   else if(a==='importYes')doImport();
 });
@@ -955,7 +970,7 @@ var KEYS=[
   ['Estilo y presentación',[[['T'],'Cambiar estilo: galaxia, biblioteca o fuego'],[['P'],'Presentar la nota seleccionada (o la primera)']]],
   ['Dentro de la presentación',[[['←','→'],'Nota anterior o siguiente'],[['A','–','Z'],'Ir a la nota que tenga asignada esa letra'],[['↑','↓'],'Desplazar el texto'],[['+','−'],'Texto de la presentación más grande o más pequeño'],[['Home','End'],'Primera o última nota'],[['Esc'],'Salir de la presentación']]],
   ['Selección y deshacer',[[['Mayús','clic'],'Sumar o quitar una nota de la selección'],[['Mayús','arrastrar'],'Seleccionar varias notas con un recuadro'],[['Ctrl','A'],'Seleccionar todas las notas'],[['Supr'],'Borrar la nota o las notas seleccionadas'],[['Ctrl','Z'],'Deshacer'],[['Ctrl','Y'],'Rehacer (también Ctrl+Mayús+Z)']]],
-  ['General',[[['?'],'Mostrar esta ayuda']]]
+  ['General',[[['B'],'Ocultar o mostrar las barras de arriba'],[['?'],'Mostrar esta ayuda']]]
 ];
 function helpDlg(){
   var h='<div class="dh"><h2>Atajos de teclado</h2><button class="x" data-act="dclose" type="button" aria-label="Cerrar">×</button></div><p class="hint" style="font-size:13px">Las teclas sueltas funcionan cuando no estás escribiendo en un campo.</p>';
@@ -1015,6 +1030,7 @@ document.addEventListener('keydown',function(e){
     return;
   }
   if(k==='Delete'||k==='Backspace'){if(msel.size){e.preventDefault();deleteNotes(Array.from(msel));}else if(sel){e.preventDefault();deleteNote(sel);}return;}
+  if(k==='b'||k==='B'){e.preventDefault();var bm=S.barsMin,all=bm.bar&&bm.tabs;bm.bar=!all;bm.tabs=!all;applyBars();save();return;}
   if(k==='?'){e.preventDefault();helpDlg();return;}
   if(k==='/'){e.preventDefault();$('#q').focus();return;}
   if(k==='n'){e.preventDefault();$('#addTitle').focus();return;}
@@ -1042,7 +1058,7 @@ function tc(id){if(/^#[0-9a-f]{6}$/i.test(id||''))return id;return theme==='fueg
 function labF(n){return theme==='biblioteca'?1.75:(theme==='fuego'?1.25:(n.imgs.length?1.5:1.25));}
 function applyTheme(t,silent){
   if(!THEMES[t])t='galaxia';
-  theme=t;ACCENT=THEMES[t].accent;S.theme=t;document.body.className='th-'+t+(presOpen?' presing':'');
+  theme=t;ACCENT=THEMES[t].accent;S.theme=t;document.body.className='th-'+t+(presOpen?' presing':'');applyBars();
   Array.prototype.forEach.call(document.querySelectorAll('#themes button'),function(b){var on=b.dataset.th===t;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');});
   neb=null;lib=null;dirty=true;
   if(presOpen)redrawThumbs();
@@ -1659,6 +1675,133 @@ function loadExamples(){
 /* pantalla completa */
 function goFull(){var el=document.documentElement,f=el.requestFullscreen||el.webkitRequestFullscreen;if(f){try{var p=f.call(el);if(p&&p.catch)p.catch(function(){});}catch(x){}}}
 function leaveFull(){if(document.fullscreenElement||document.webkitFullscreenElement){var f=document.exitFullscreen||document.webkitExitFullscreen;if(f){try{var p=f.call(document);if(p&&p.catch)p.catch(function(){});}catch(x){}}}}
+
+/* ---------- v6: barras minimizables ---------- */
+function applyBars(){
+  var m=(S&&S.barsMin)||{};
+  document.body.classList.toggle('hide-bar',!!m.bar);
+  document.body.classList.toggle('hide-tabs',!!m.tabs);
+  var a=$('#btnBar'),b=$('#btnTabs');
+  if(a){a.textContent=(m.bar?'▼':'▲')+' Menú';a.setAttribute('aria-pressed',m.bar?'true':'false');}
+  if(b){b.textContent=(m.tabs?'▼':'▲')+' Materias';b.setAttribute('aria-pressed',m.tabs?'true':'false');}
+}
+$('#btnBar').addEventListener('click',function(e){S.barsMin.bar=!S.barsMin.bar;applyBars();save();e.currentTarget.blur();});
+$('#btnTabs').addEventListener('click',function(e){S.barsMin.tabs=!S.barsMin.tabs;applyBars();save();e.currentTarget.blur();});
+
+/* ---------- v6: exportar / importar carpeta con imágenes ---------- */
+function cleanName(s){return String(s||'materia').replace(/[\\\/:*?"<>|\u0000-\u001f]/g,'').trim().slice(0,60)||'materia';}
+function dataExt(d){var m=/^data:image\/([\w+]+)/.exec(d),e=m?m[1].toLowerCase():'jpeg';if(e==='jpeg')return 'jpg';if(e==='svg+xml')return 'svg';return e;}
+function dataToBytes(d){var i=d.indexOf(','),b=atob(d.slice(i+1)),u=new Uint8Array(b.length);for(var k=0;k<b.length;k++)u[k]=b.charCodeAt(k);return u;}
+function buildPackage(list){
+  var clean=JSON.parse(JSON.stringify(list,function(k,v){return k.charAt(0)==='_'?undefined:v;}));
+  var files=[],map={},nimg=0;
+  clean.forEach(function(s){
+    s.view=null;
+    s.notes.forEach(function(n){
+      n.imgs.forEach(function(id){
+        if(map[id]||!imgData.has(id))return;
+        var d=imgData.get(id),p='imagenes/'+id+'.'+dataExt(d);
+        map[id]=p;files.push({path:p,bytes:dataToBytes(d)});nimg++;
+      });
+      n.imgs=n.imgs.filter(function(id){return !!map[id];});
+    });
+  });
+  var enc=new TextEncoder();
+  var meta={app:'boveda-apuntes-carpeta',v:2,at:Date.now(),theme:S.theme,subjects:clean,imgs:map};
+  var readme='Bóveda de apuntes — copia portátil\r\n\r\nPara usarla en otra computadora: abre la Bóveda de apuntes, pulsa «Respaldo» y luego «Importar carpeta…», y elige esta carpeta completa.\r\nNo muevas ni renombres los archivos de dentro (boveda.json y la carpeta imagenes).\r\n';
+  files.unshift({path:'LEEME.txt',bytes:enc.encode(readme)});
+  files.unshift({path:'boveda.json',bytes:enc.encode(JSON.stringify(meta))});
+  return {files:files,nimg:nimg};
+}
+var CRCT=null;
+function crc32(u){
+  if(!CRCT){CRCT=new Uint32Array(256);for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?(0xEDB88320^(c>>>1)):(c>>>1);CRCT[n]=c>>>0;}}
+  var c2=0xFFFFFFFF;for(var i=0;i<u.length;i++)c2=CRCT[(c2^u[i])&255]^(c2>>>8);return (c2^0xFFFFFFFF)>>>0;
+}
+function makeZip(files){
+  var enc=new TextEncoder(),parts=[],cen=[],off=0,d=new Date();
+  var dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+  files.forEach(function(f){
+    var nm=enc.encode(f.path),crc=crc32(f.bytes),sz=f.bytes.length;
+    var lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);lh.setUint16(10,tm,true);lh.setUint16(12,dt,true);lh.setUint32(14,crc,true);lh.setUint32(18,sz,true);lh.setUint32(22,sz,true);lh.setUint16(26,nm.length,true);lh.setUint16(28,0,true);
+    parts.push(new Uint8Array(lh.buffer),nm,f.bytes);
+    var ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);ch.setUint16(12,tm,true);ch.setUint16(14,dt,true);ch.setUint32(16,crc,true);ch.setUint32(20,sz,true);ch.setUint32(24,sz,true);ch.setUint16(28,nm.length,true);ch.setUint32(42,off,true);
+    cen.push(new Uint8Array(ch.buffer),nm);
+    off+=30+nm.length+sz;
+  });
+  var cs=0;cen.forEach(function(p){cs+=p.length;});
+  var e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);
+  return new Blob(parts.concat(cen,[new Uint8Array(e.buffer)]),{type:'application/zip'});
+}
+function writeAll(root,files){
+  var p=Promise.resolve();
+  files.forEach(function(f){
+    p=p.then(function(){
+      var segs=f.path.split('/'),name=segs.pop(),q=Promise.resolve(root);
+      segs.forEach(function(sg){q=q.then(function(dh){return dh.getDirectoryHandle(sg,{create:true});});});
+      return q.then(function(dh){return dh.getFileHandle(name,{create:true});}).then(function(fh){return fh.createWritable();}).then(function(w){return w.write(f.bytes).then(function(){return w.close();});});
+    });
+  });
+  return p;
+}
+function zipDownload(pk,folder){
+  var files=pk.files.map(function(f){return {path:folder+'/'+f.path,bytes:f.bytes};});
+  var blob=makeZip(files),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=folder+'.zip';document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);if(a.parentNode)a.parentNode.removeChild(a);},4000);
+  toast('Se descargó «'+folder+'.zip» ('+pk.nimg+' imágenes). Descomprímelo y usa «Importar carpeta…» en la otra computadora.');
+}
+function exportSubjects(list){
+  if(!list||!list.length)return;
+  var folder=list.length===1?'Boveda - '+cleanName(list[0].name):'Boveda - todas las materias',pk;
+  try{pk=buildPackage(list);}catch(x){toast('No se pudo preparar la exportación.');return;}
+  closeDlg();
+  if(window.showDirectoryPicker){
+    window.showDirectoryPicker({mode:'readwrite'}).then(function(root){return root.getDirectoryHandle(folder,{create:true});}).then(function(dir){return writeAll(dir,pk.files);}).then(function(){
+      toast('Carpeta «'+folder+'» guardada: '+list.length+(list.length===1?' materia':' materias')+' y '+pk.nimg+' imágenes.');
+    },function(err){if(err&&err.name==='AbortError')return;zipDownload(pk,folder);});
+  }else zipDownload(pk,folder);
+}
+function readDataUrl(file,ext){return new Promise(function(res){
+  var fr=new FileReader();
+  fr.onload=function(){var mime=ext==='jpg'?'jpeg':(ext==='svg'?'svg+xml':ext);res(String(fr.result).replace(/^data:[^;,]*/,'data:image/'+mime));};
+  fr.onerror=function(){res(null);};fr.readAsDataURL(file);
+});}
+function importDir(fl){
+  var files=Array.prototype.slice.call(fl),byPath={},js=null;
+  files.forEach(function(f){
+    var rel=(f.webkitRelativePath||f.name).split('/').slice(1).join('/');
+    byPath[rel]=f;if(rel==='boveda.json')js=f;
+  });
+  if(!js){toast('Esa carpeta no tiene boveda.json. Elige la carpeta que exportaste.');return;}
+  var fr=new FileReader();
+  fr.onload=function(){
+    var o;try{o=JSON.parse(fr.result);}catch(x){}
+    if(!o||o.app!=='boveda-apuntes-carpeta'||!Array.isArray(o.subjects)||!o.subjects.length){toast('Esa carpeta no es una exportación de la Bóveda de apuntes.');return;}
+    var ids=Object.keys(o.imgs||{}),missing=0;
+    Promise.all(ids.map(function(id){
+      var f=byPath[o.imgs[id]];if(!f){missing++;return Promise.resolve(null);}
+      return readDataUrl(f,(o.imgs[id].split('.').pop()||'jpg').toLowerCase());
+    })).then(function(datas){
+      ids.forEach(function(id,i){if(datas[i]){imgData.set(id,datas[i]);imgEl.delete(id);idbPut(id,datas[i]);}});
+      var tmp=norm({subjects:o.subjects,current:o.subjects[0].id}),names=S.subjects.map(function(s){return s.name.toLowerCase();}),first=null;
+      tmp.subjects.forEach(function(s){
+        s.id=uid();s.view=null;
+        var nm=s.name,c=2;while(names.indexOf(nm.toLowerCase())>=0)nm=s.name+' ('+(c++)+')';
+        s.name=nm;names.push(nm.toLowerCase());
+        s.notes.forEach(function(n){n.imgs=n.imgs.filter(function(id){return imgData.has(id);});});
+        S.subjects.push(s);if(!first)first=s;
+      });
+      closeDlg();setSubject(first.id);save();
+      toast('Importadas '+tmp.subjects.length+(tmp.subjects.length===1?' materia':' materias')+(missing?' ('+missing+' imágenes no se encontraron)':'')+'. Puedes deshacer con Ctrl+Z.');
+    });
+  };
+  fr.readAsText(js);
+}
+$('#fileDir').addEventListener('change',function(e){var l=e.target.files;if(l&&l.length)importDir(l);e.target.value='';});
 
 /* ---------- arranque ---------- */
 S=norm(loadLocal()||blank());
